@@ -24,7 +24,7 @@
   - どの controller が実際のロック主か
   - 障害時に誰が真実を持っているか
   が曖昧になり、**事故調査のコストが跳ね上がる**。
-- 中小規模ユースケース（`docs/remote-lock-usecase.md`）では、
+- 中小規模ユースケース（`docs-j/remote-lock-usecase-j.md`）では、
   「どの Jenkins が管理 controller か」は運用上明確に決まっており、
   自動ルーティングの必要性が薄い。
 

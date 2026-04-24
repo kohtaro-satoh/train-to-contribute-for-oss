@@ -117,8 +117,8 @@ Upstream 要望: `https://github.com/jenkinsci/lockable-resources-plugin/issues/
 - `node-sharing` プラグイン
 - `vra` プラグインの REST クライアント実装
 - 親 Epic（本リポジトリ）: Remote lockable resources (explicit `serverId` routing)
-- `docs/remote-lock-usecase.md`（このドキュメントと対になるユースケース集）
-- `docs/remote-lock-design-notes.md`（設計上の判断メモ）
+- `docs-j/remote-lock-usecase-j.md`（このドキュメントと対になるユースケース集）
+- `docs-j/remote-lock-design-notes-j.md`（設計上の判断メモ）
 
 ## 8. TODO / 要検討
 
