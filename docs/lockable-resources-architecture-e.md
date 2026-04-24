@@ -1,17 +1,17 @@
-# Lockable Resources Plugin Architecture Analysis
+# Lockable Resources Plugin Architectural Analysis
 
 Target branch: master  
 Target path: `lockable-resources-plugin/`  
-Purpose: implementation understanding and study material for future extension design
+Purpose: to document implementation details and provide study material for future extension design.
 
 ---
 
 ## Table of Contents
 
-1. [Bird's-eye View of the Overall Structure](#1-bird's-eye-view-of-the-overall-structure)
+1. [High-Level Architectural Overview](#1-high-level-architectural-overview)
 2. [Package Structure and Class Responsibilities](#2-package-structure-and-class-responsibilities)
 3. [Data Model Details](#3-data-model-details)
-4. [Pipeline lock Step Execution Flow](#4-pipeline-lock-step-execution-flow)
+4. [Execution Flow of the Pipeline lock Step](#4-execution-flow-of-the-pipeline-lock-step)
 5. [How the Waiting Queue Works](#5-how-the-waiting-queue-works)
 6. [Integration with Freestyle Builds](#6-integration-with-freestyle-builds)
 7. [UI and HTTP API](#7-ui-and-http-api)
@@ -21,7 +21,7 @@ Purpose: implementation understanding and study material for future extension de
 
 ---
 
-## 1. Bird's-eye View of the Overall Structure
+## 1. High-Level Architectural Overview
 
 ```mermaid
 graph TB
@@ -43,15 +43,15 @@ graph TB
         end
 
         subgraph QueuePkg["queue package"]
-            LRL["LockRunListener\n(for Freestyle)"]
-            LRQ["LockableResourcesQueueTaskDispatcher\n(Freestyle waiting)"]
+            LRL["LockRunListener\n(for Freestyle jobs)"]
+            LRQ["LockableResourcesQueueTaskDispatcher\n(Freestyle queue gating)"]
             LWTo["LockWaitTimeoutPeriodicWork\n(timeout watcher)"]
         end
 
         subgraph ActionsPkg["actions package"]
             LRRA["LockableResourcesRootAction\n(Web UI / REST API)"]
-            LRBA["LockedResourcesBuildAction\n(build-attached log)"]
-            RVA["ResourceVariableNameAction\n(variable name record)"]
+            LRBA["LockedResourcesBuildAction\n(build-level lock log)"]
+            RVA["ResourceVariableNameAction\n(variable name tracking)"]
         end
 
         NM["NodesMirror\n(Node -> Resource auto-sync)"]
@@ -254,7 +254,7 @@ classDiagram
 
 ---
 
-## 4. Pipeline lock Step Execution Flow
+## 4. Execution Flow of the Pipeline lock Step
 
 ### 4.1 Successful Acquisition Path
 
@@ -285,7 +285,7 @@ sequenceDiagram
     LRM->>LRM: re-evaluate waiting entries with tryNextContext()
 ```
 
-### 4.2 Failure -> Wait -> Reacquire Path
+### 4.2 Failure -> Wait -> Retry Path
 
 ```mermaid
 sequenceDiagram
@@ -312,6 +312,8 @@ sequenceDiagram
 ---
 
 ## 5. How the Waiting Queue Works
+
+The queue is not a simple FIFO in all cases. It supports priority and inverse precedence while still trying to avoid starvation.
 
 ```mermaid
 graph TB
@@ -340,7 +342,7 @@ graph TB
     G -->|"evaluation finished"| J
 ```
 
-**Waiting with timeout (LockWaitTimeoutPeriodicWork):**
+**Timeout handling while waiting (`LockWaitTimeoutPeriodicWork`):**
 
 ```mermaid
 sequenceDiagram
@@ -362,7 +364,7 @@ sequenceDiagram
 
 ## 6. Integration with Freestyle Builds
 
-Freestyle builds use the standard Jenkins build queue rather than the Pipeline pause/resume model.
+Freestyle builds rely on the standard Jenkins queue model, instead of the Pipeline pause/resume mechanism.
 
 ```mermaid
 sequenceDiagram
@@ -385,7 +387,7 @@ sequenceDiagram
 
     J->>LRL: onStarted(build)
     LRL->>LRM: lock(queuedResources, build)
-    Note over LRM: queue reservation is promoted to an actual lock
+    Note over LRM: queue reservation is then promoted to an actual lock
 
     J->>LRL: onCompleted(build)
     LRL->>LRM: unlockBuild(build)
@@ -402,7 +404,7 @@ sequenceDiagram
 graph TD
     ROOT["/jenkins/lockable-resources/"]
     ROOT --> INDEX["index.jelly\n(resource list, label list, waiting queue)"]
-    ROOT --> API["/api/json\n(REST API: getResources() exposed via @Exported)"]
+    ROOT --> API["/api/json\n(REST API exposing getResources() via @Exported)"]
     ROOT --> RESERVE["doReserve()\nPOST /reserve"]
     ROOT --> UNRESERVE["doUnreserve()\nPOST /unreserve"]
     ROOT --> UNLOCK["doUnlock()\nPOST /unlock"]
@@ -429,14 +431,16 @@ graph LR
     QUEUE --> ADMINISTER
 ```
 
-**Important note for future distributed use:**  
+**Important note for potential distributed use:**  
 `LockableResourcesRootAction` is implemented as a `RootAction` (authenticated), not an `UnprotectedRootAction`.  
-That means it stays inside the standard Jenkins authentication flow.  
-If an external Jenkins instance calls its endpoints, Jenkins API token authentication is required.
+This keeps it inside the standard Jenkins authentication flow.  
+If another Jenkins instance calls these endpoints, API token-based authentication is required.
 
 ---
 
 ## 8. Persistence Mechanism
+
+The plugin persists state through Jenkins `GlobalConfiguration`, with optional asynchronous save coalescing to reduce disk I/O churn.
 
 ```mermaid
 graph LR
@@ -463,14 +467,16 @@ graph LR
     end
 ```
 
-**Async save design (`saveCoalesceMs`: default 1000ms):**
+**Asynchronous save design (`saveCoalesceMs`: default `1000ms`):**
 
-To avoid bursts of disk I/O in environments with frequent lock/unlock activity, saves are coalesced using `AtomicBoolean savePending` and a `ScheduledExecutor`.  
+To avoid bursts of disk I/O in environments with frequent lock/unlock activity, save operations are coalesced using `AtomicBoolean savePending` and a `ScheduledExecutor`.  
 This can be disabled with the system property `org.jenkins.plugins.lockableresources.ASYNC_SAVE=false`.
 
 ---
 
 ## 9. Nodes Mirror Feature
+
+When enabled, this feature mirrors Jenkins nodes as lockable resources so node-level exclusivity can be modeled through the same lock mechanism.
 
 ```mermaid
 sequenceDiagram
@@ -493,11 +499,13 @@ sequenceDiagram
 ```
 
 Enabled by: `-Dorg.jenkins.plugins.lockableresources.ENABLE_NODE_MIRROR=true`  
-Use case: treat Jenkins agent nodes themselves as lockable resources (for example, exclusive use of a specific node)
+Use case: treat Jenkins agent nodes themselves as lockable resources (for example, exclusive use of a specific node).
 
 ---
 
 ## 10. Synchronization and Thread-Safety Strategy
+
+Thread safety is centered on a shared monitor (`syncResources`) combined with targeted caches to keep lock checks efficient.
 
 ```mermaid
 graph TB
@@ -524,7 +532,7 @@ graph TB
 
 ---
 
-> **Note:** This document is based on the master branch codebase (2.19 line).  
+> **Note:** This document is based on the master-branch codebase (2.19 line).  
 > Main referenced files:  
 > - `LockableResource.java`  
 > - `LockableResourcesManager.java`  
