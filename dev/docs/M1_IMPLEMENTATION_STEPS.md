@@ -236,15 +236,28 @@
 - `remoteApiEnabled = false` のとき全エンドポイントが 403
 - Stale マーク動作が確認できる
 
-- [ ] 実装完了
-- [ ] 単体確認完了
+- [x] 実装完了
+- [x] 単体確認完了
 
 記録:
-- 日付:
-- コミット:
+- 日付: 2026-05-14
+- コミット: f358dd9
 - 変更ファイル:
-- 確認結果:
+  - src/main/java/.../remote/RemoteLockState.java (新規)
+  - src/main/java/.../remote/RemoteLockRecord.java (新規)
+  - src/main/java/.../remote/RemoteLockManager.java (新規)
+  - src/main/java/.../remote/RemoteClientDefaults.java (編集: DEFAULT_REQUEST_TIMEOUT_SECONDS 10→5)
+  - src/main/java/.../actions/RemoteApiV1Action.java (新規)
+  - src/main/java/.../LockableResource.java (編集: remoteLockedBy フィールド追加、isLocked() 更新)
+  - src/main/java/.../LockableResourcesManager.java (編集: remoteApiEnabled + exposeLabel 追加)
+  - src/main/java/.../actions/LockableResourcesRootAction.java (編集: getDynamic routing 追加)
+  - src/test/resources/.../casc_expected_output.yml (編集: remoteApiEnabled: false 追加)
+- 確認結果: `rm -rf target/classes && mvn test` で BUILD SUCCESS（Tests run: 261, Failures: 0, Errors: 0, Skipped: 1）。
 - 補足:
+  - Extension index (`META-INF/annotations/hudson.Extension.txt`) が生成されないと Jenkins 起動時に @Extension クラスが未発見になり全テスト失敗する。`target/classes` を削除して強制再コンパイルすることで解消。
+  - `mvn compile && mvn test` はこの問題を引き起こすため NG。`mvn test` のみを使う。
+  - Stale 自動解放なし（安全方向）。STALE_THRESHOLD_MS=60000ms、TERMINAL_TTL_MS=120000ms。
+  - 永続化なし（Jenkins 再起動時は全レコードが消える）。
 
 ---
 
