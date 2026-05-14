@@ -1,0 +1,2 @@
+- **Peer mode** (default): a pipeline can opt into a specific remote with `lock(..., serverId: 'X') { body }`. Plain `lock('X') { body }` without `serverId` keeps its existing single-Jenkins behavior unchanged.
+- **Delegated mode** (when `forcedServerId` is set on the local Jenkins): the same plain `lock('X') { body }` notation — previously a single-Jenkins call — is transparently routed to the configured remote Jenkins instead. The pipeline does not need to know about remoteness.

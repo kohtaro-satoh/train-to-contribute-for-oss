@@ -70,7 +70,7 @@
 - 既定値（内部定数）:
   - pollIntervalSeconds = 3
   - heartbeatIntervalSeconds = 10
-  - requestTimeoutSeconds = 10
+  - requestTimeoutSeconds = 5（tick ループのブロック時間を抑えるため、Step5 で 10→5 に変更）
 - エラー方針: fail-closed（4xx/5xx/通信失敗を RemoteApiException へ変換）
 - URL方針: `/lockable-resources/remote/v1` を固定し、base URL の末尾スラッシュ差異を吸収
 - ログ方針: serverId/method/path/status のみ出力し、認証情報は出力しない
@@ -170,16 +170,71 @@
 ### 5. remote 側 REST エンドポイント（M1 必須範囲）
 
 目的:
-- M1 必要範囲のエンドポイントを実装する。
+- M1 必要範囲のエンドポイントをサーバー側に実装する。
 
-想定対象:
-- `POST /acquire`
-- `GET /acquire/{lockId}`
-- `POST /lease/{lockId}/release`（最低限）
+#### 確定設計方針
+
+**1. リモートロックの表現（LockableResource 側）**
+- `LockableResource` に `transient String remoteLockedBy`（lockId or null）フィールドを追加。
+- LRM は `remoteLockedBy != null` のリソースを「使用中」と判定する。`RemoteLockRecord` の中身は知らない。
+
+**2. Stapler ルーティング**
+- `LockableResourcesRootAction.getDynamic("remote")` → `getDynamic("v1")` → `RemoteApiV1Action`
+- `RemoteApiV1Action` に各エンドポイントを実装する。
+
+**3. RemoteLockRecord の保管場所**
+- `RemoteLockManager`（`@Extension`）を新規作成し、`ConcurrentHashMap<String, RemoteLockRecord>` で in-memory 管理。
+- 永続化しない（Jenkins 再起動時は全レコードが消える）。
+- 運用: 管理者が expose 対象リソースが healthy であることを確認してから `remoteApiEnabled = true` にする。
+
+**4. マスタースイッチ / expose 設定**
+- `LockableResourcesManager` に `remoteApiEnabled`（boolean、デフォルト false）と `exposeLabel`（String）を追加。
+- `remoteApiEnabled = false` の場合、全エンドポイントが 403 を返す。
+
+**5. 認証・認可**
+- Jenkins 標準認証（API トークン）+ `Jenkins.READ` チェックのみ。
+- 専用 Permission は M2 以降の検討とし、M1 では導入しない。
+
+**6. Stale 検出と解放方針**
+- `RemoteLockManager` のスケジューラスレッドで定期 scan し、STALE_THRESHOLD を超えたレコードを STALE マーク。
+- Stale になったロックは自動解放しない（安全方向）。管理者が UI で手動 Unstale。
+- Discovery / GET 系エンドポイントは read only（write 調停不要）。
+- 並行性: `ConcurrentHashMap` + フィールドは `volatile`。
+
+**並行性設計**
+- `RemoteLockManager` は `ScheduledThreadPool(1)`（単一スレッド）で 1 秒周期の tick ループを持つ。
+- tick 内で経過時間を見て必要なタスクを実行:
+  - (client) 前回 poll から 3s 経過 → GET /acquire/{lockId}（アクティブロックごと）
+  - (client) body 実行中 かつ 前回 heartbeat から 10s 経過 → POST /heartbeat（アクティブロックごと）
+  - (client) Discovery: 前回から N 秒経過 → GET /resources
+  - (server) 前回 Stale scan から STALE_THRESHOLD / 2 秒経過 → 全 RemoteLockRecord 走査
+- 各タスクは `lastRunAt` タイムスタンプを持ち、tick 内で実行判断する。
+- writer はこの 1 スレッドのみ → Discovery / GET 系は read only で調停不要。
+- tick ループは単一スレッドのため、HTTP 呼び出しのブロック時間がそのまま tick 全体の遅延になる。
+  この設計に合わせて `RemoteClientDefaults.DEFAULT_REQUEST_TIMEOUT_SECONDS` を 10 → 5 に変更する（Step5 コミットに含める）。
+
+#### 実装対象エンドポイント
+
+| メソッド | パス | 概要 |
+|---|---|---|
+| POST | `/lockable-resources/remote/v1/acquire` | acquire エンキュー、`{lockId}` を返す |
+| GET  | `/lockable-resources/remote/v1/acquire/{lockId}` | 状態照会（QUEUED/ACQUIRED/SKIPPED/FAILED/EXPIRED） |
+| POST | `/lockable-resources/remote/v1/lease/{lockId}/heartbeat` | heartbeat 更新、204 を返す |
+| POST | `/lockable-resources/remote/v1/lease/{lockId}/release` | ロック解放、204 を返す |
+
+#### 実装順序
+
+1. `RemoteLockRecord` クラス新規作成
+2. `RemoteLockManager` クラス新規作成（スケジューラ + record CRUD）
+3. `LockableResource` に `remoteLockedBy` フィールド追加
+4. `LockableResourcesManager` に `remoteApiEnabled` + `exposeLabel` 追加
+5. `RemoteApiV1Action` 新規作成（エンドポイント実装）
+6. `LockableResourcesRootAction` に `getDynamic` 追加
 
 完了条件:
-- local 側から呼べる
-- 基本的なリクエスト/レスポンス仕様が固まる
+- local 側の `RemoteApiClient` から呼べる（3 controller 環境で動作確認）
+- `remoteApiEnabled = false` のとき全エンドポイントが 403
+- Stale マーク動作が確認できる
 
 - [ ] 実装完了
 - [ ] 単体確認完了
@@ -266,6 +321,6 @@
 ## 現在ステータス
 
 - 開始日: 2026-05-09
-- 現在ステップ: 3（Step2 amend 完了、Step3 は stash 退避中）
-- 次アクション: `stash@{0}` を適用して Step3 実装を lockId 統一版として再調整し、Step3コミットを作成
+- 現在ステップ: 5（Step1〜4 完了、Step5 設計確定・実装開始前）
+- 次アクション: Step5 の実装順序1（`RemoteLockRecord` クラス新規作成）から着手
 - ブロッカー: なし

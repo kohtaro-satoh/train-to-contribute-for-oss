@@ -1,0 +1,3 @@
+To avoid B-local jobs accidentally acquiring a resource that was previously locked remotely, I think remote leases should be treated as first-class lock state and be persisted, so that after restart the resource is still considered locked (possibly marked `STALE`) until an operator explicitly releases it.
+
+This does add some disk I/O on the remote side, but I expect it to be acceptable for the target scale, similar to the short-polling overhead. Also, the persistence can be event-based (acquire/transition/release), and heartbeats do not necessarily need to be persisted on every tick.

@@ -1,0 +1,1 @@
+Where `(base)` = `/lockable-resources/remote/v1`.

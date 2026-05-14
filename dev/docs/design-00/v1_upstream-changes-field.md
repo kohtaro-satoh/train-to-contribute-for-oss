@@ -1,0 +1,1 @@
+No. The proposal can be implemented within this plugin alone.

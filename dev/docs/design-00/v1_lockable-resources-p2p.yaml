@@ -1,0 +1,13 @@
+peers:
+  - id: jenkins-b
+    url: https://jenkins-b.example.com/
+    credentialsId: jenkins-b-token
+  - id: jenkins-c
+    url: https://jenkins-c.example.com/
+    credentialsId: jenkins-c-token
+
+exports:
+  - resource: db-a1
+    allowPeers: [jenkins-b, jenkins-c]
+  - label: shared-gpu
+    allowPeers: [jenkins-b]

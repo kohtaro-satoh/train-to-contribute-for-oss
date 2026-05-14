@@ -1,0 +1,1 @@
+(In other words: remote locking is an explicit on/off feature and defaults to OFF after restart until an administrator enables it.)

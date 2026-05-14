@@ -1,0 +1,1 @@
+Inspired by the "lockable-master / lockable-slave" idea in [#321 (comment)](https://github.com/jenkinsci/lockable-resources-plugin/issues/321#issuecomment-1412529601) and scoped down to an **explicit, lightweight, safety-first** design.

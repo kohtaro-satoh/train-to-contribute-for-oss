@@ -1,0 +1,3 @@
+To avoid B-local jobs accidentally acquiring a resource that was previously locked remotely, I think remote leases should be treated as first-class lock state and be persisted, so that after restart the resource is still considered locked until an operator explicitly releases it.
+
+To keep this lightweight, we would not need to persist every heartbeat. We only need to persist the lease existence/state (and optionally owner metadata for UI). After restart, any restored remote lease can be treated as `STALE` by default until new heartbeats arrive.

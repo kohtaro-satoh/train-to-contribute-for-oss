@@ -1,0 +1,1 @@
+PS: Interesting idea re: GitHub Actions. If we have a stable remote-lock API, Jenkins could indeed act as a small "lock service" that other systems call. For Phase 1 I'm focusing on Jenkins-to-Jenkins only, but I'd be happy to keep this use case in mind for future phases.

@@ -1,0 +1,12 @@
+pipeline {
+    agent any
+    stages {
+        stage('Deploy') {
+            steps {
+                lock(resource: 'production-server') {
+                    sh './deploy.sh'
+                }
+            }
+        }
+    }
+}

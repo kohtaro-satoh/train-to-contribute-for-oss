@@ -1,0 +1,20 @@
+# 自サーバーのID
+selfId: jenkins-a
+
+# 接続先ピア
+peers:
+  - id: jenkins-b
+    url: https://jenkins-b.example.com/
+    credentialsId: peer-jenkins-b
+  - id: jenkins-c
+    url: https://jenkins-c.example.com/
+    credentialsId: peer-jenkins-c
+
+# 公開ポリシー（自リソースを誰に見せるか）
+exports:
+  - match: { resource: db-a1 }
+    allowPeers: [jenkins-b, jenkins-c]
+  - match: { label: shared-gpu }
+    allowPeers: [jenkins-b]
+  - match: { label: internal-only }
+    allowPeers: []   # 公開しない（= ローカル限定）

@@ -1,0 +1,2 @@
+> **Background notes for** [jenkinsci/lockable-resources-plugin#1025](https://github.com/jenkinsci/lockable-resources-plugin/issues/1025).
+> Author's working notes (English draft). The authoritative proposal lives in the upstream issue.

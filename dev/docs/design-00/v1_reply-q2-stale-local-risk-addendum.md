@@ -1,0 +1,3 @@
+One more concern here is exactly what you mentioned: after a restart, we must avoid B's *local* jobs accidentally acquiring/using a resource that was previously locked remotely (and is now "stale/unknown").
+
+To stay safety-first, the remote-side should treat remote leases as first-class lock state (ideally persisted), so that after restart the resource is still considered locked (and possibly marked `STALE`) until an operator explicitly releases it.
