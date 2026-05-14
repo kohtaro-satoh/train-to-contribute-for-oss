@@ -1,0 +1,7 @@
+# start.sh が生成するビルド成果物（コミット対象外）
+docker/lockable-resources.hpi
+
+# Jenkins home ディレクトリ（start.sh が自動作成）
+jh8081/
+jh8082/
+jh8083/

@@ -1,0 +1,13 @@
+# lockable-resources の直接依存プラグイン
+caffeine-api
+data-tables-api
+mailer
+matrix-project
+script-security
+structs
+variant
+workflow-support
+
+# Pipeline ジョブ実行に必要（テスト用）
+workflow-aggregator
+pipeline-model-definition
