@@ -272,15 +272,69 @@
 
 ### 6. 最小 UI/可視化（M1 で必要な範囲のみ）
 
-目的:
-- 実行時に追える最低限の表示を入れる。
+スコープ確定（2026-05-16）:
+- **6a**: `clientId` を `POST /acquire` に追加（クライアント送信 + サーバー受信・保存 + 設定 UI）
+- **6b**: B-side LR ページ表示（サーバー側 LR 一覧に `clientId`・`lockId` を表示）
 
-実装候補:
-- build log へ remote 対象の `serverId` や状態遷移を出力
-- 必要なら LR 画面に最小情報表示
+---
+
+#### Step 6a: `clientId` 追加
+
+目的:
+- `POST /acquire` に送信元 Jenkins の識別子 `clientId` を持たせ、サーバー側でロック保有者を把握できるようにする。
+- 管理者が明示設定できるフィールドを LRM に追加し、未設定時は `Jenkins.getRootUrl()` にフォールバックする。
+
+実装内容:
+- `RemoteLockRecord`: `clientId` フィールド追加（nullable）
+- `RemoteLockManager.enqueue()`: シグネチャに `clientId` 追加
+- `RemoteApiV1Action` (`POST /acquire`): `clientId` optional フィールドをパース・正規化・保存
+- `RemoteApiClient.enqueueAcquire()`: `clientId` 引数追加、非 null 時のみリクエストボディに含める
+- `LockableResourcesManager`: `clientId` 設定フィールド追加（`setClientId` / `getClientId` / `getEffectiveClientId`）、`readResolve()` に null 正規化追加
+- `LockStepExecution`: `LockableResourcesManager.get().getEffectiveClientId()` を使用するよう変更
+- `LockableResourcesManager/config.jelly`: "Remote Lockable Resources (Client)" セクションと `clientId` textbox 追加
+- `LockableResourcesManager/config.properties`: UI ラベルキー追加
+- `RemoteApiClientTest`: `enqueueAcquire()` 呼び出し箇所に `null` 引数追加
+- `LRR-DESIGN-j.md`: `POST /acquire` 仕様・フロー図・セクション6 設定テーブルを更新
 
 完了条件:
-- 失敗時に原因追跡しやすい情報が残る
+- `mvn test` が通る
+- 設定 UI で `clientId` を入力・保存できる
+
+- [x] 実装完了
+- [x] `mvn test` 確認完了
+- [x] コミット済み
+
+記録:
+- 日付: 2026-05-16
+- コミット: f89330a
+- 変更ファイル:
+  - src/main/java/.../remote/RemoteLockRecord.java (編集)
+  - src/main/java/.../remote/RemoteLockManager.java (編集)
+  - src/main/java/.../actions/RemoteApiV1Action.java (編集)
+  - src/main/java/.../remote/RemoteApiClient.java (編集)
+  - src/main/java/.../LockableResourcesManager.java (編集: clientId フィールド追加)
+  - src/main/java/.../LockStepExecution.java (編集: getEffectiveClientId() へ切替 + Jenkins import 削除)
+  - src/main/resources/.../LockableResourcesManager/config.jelly (編集)
+  - src/main/resources/.../LockableResourcesManager/config.properties (編集)
+  - src/test/java/.../remote/RemoteApiClientTest.java (編集)
+  - lrr-notes/dev/docs/LRR-DESIGN-j.md (編集)
+- 確認結果: `mvn test` で BUILD SUCCESS（Tests run: 261, Failures: 0, Errors: 0, Skipped: 1, Total time: 13:05）。2026-05-16
+- 補足: `getEffectiveClientId()` は `clientId` 設定が空なら `Jenkins.getRootUrl()` を返す（`@CheckForNull`）。UI は config.jelly に "Remote Lockable Resources (Client)" セクションを追加。
+
+---
+
+#### Step 6b: B-side LR ページ表示
+
+目的:
+- サーバー側 LR 一覧画面（Lockable Resources UI）に、remote lock 保有者の `clientId` と `lockId` を表示する。
+- どの remote Jenkins がどのリソースをロックしているかを管理者が一目で把握できるようにする。
+
+実装候補:
+- `LockableResource` の表示 jelly に `remoteLockedBy` / `clientId` を追加
+- `RemoteLockRecord` に表示用 getter があれば利用
+
+完了条件:
+- LR 一覧で remote lock 保有者が確認できる
 
 - [ ] 実装完了
 - [ ] 動作確認完了
@@ -349,8 +403,8 @@
 ## 現在ステータス
 
 - 開始日: 2026-05-09
-- 現在ステップ: Step6（Step1〜5 完了）
-- 次アクション: Step6（最小 UI/可視化）から着手
+- 現在ステップ: Step 6b 着手待ち（Step 6a コミット済み `f89330a`）
+- 次アクション: Step 6b（B-side LR ページ表示）
 - ブロッカー: なし
 
 ### ブランチ整理メモ

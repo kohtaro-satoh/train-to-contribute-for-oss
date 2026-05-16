@@ -156,9 +156,13 @@ sequenceDiagram
 {
   "resource": "board-a1",          // 対象リソース名（必須）
   "skipIfLocked": false,           // ロック中ならスキップするか（任意、デフォルト false）
-  "heartbeatIntervalSeconds": 10   // クライアント側 heartbeat 間隔（任意）
+  "heartbeatIntervalSeconds": 10,  // クライアント側 heartbeat 間隔（任意）
+  "clientId": "https://jenkins-a.example.com/" // 呼び出し元 Jenkins の識別子（任意）
 }
 ```
+
+> `clientId` は任意フィールド。省略時はサーバー側で `(Undefined)` として扱う。
+> Phase 1 ではクライアント側設定の `clientId`（未設定時は `Jenkins.getRootUrl()`）を自動送信する。
 
 **レスポンス:**
 
@@ -252,7 +256,7 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TD
-    A[lock step 開始] --> B["POST /acquire\n{resource, skipIfLocked, heartbeatIntervalSeconds}"]
+    A[lock step 開始] --> B["POST /acquire\n{resource, skipIfLocked, heartbeatIntervalSeconds, clientId}"]
     B -- "HTTP 4xx (UNKNOWN_RESOURCE 等)" --> ERR1[エラーで終了]
     B -- "202 {lockId}" --> C[lockId を記録]
 
@@ -292,6 +296,7 @@ flowchart TD
 
 | 設定 | 説明 |
 |---|---|
+| `clientId` | リモートサーバーに送る自己識別子。空白時は `Jenkins.getRootUrl()` を使用。サーバー側 LR ページで "Locked by remote: `clientId`" として表示される |
 | `remotes[]` | サーバー接続のマップ（キー = `serverId`） |
 | `remotes[].url` | リモート Jenkins のベース URL |
 | `remotes[].credentialsId` | Jenkins Credentials ID（username/password 型。username = サービスアカウント、password = API トークン） |
