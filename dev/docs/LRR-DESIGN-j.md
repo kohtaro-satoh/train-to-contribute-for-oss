@@ -99,7 +99,11 @@ else:
 /lockable-resources/remote/v1/
 ```
 
-`remoteApiEnabled = false`（デフォルト）の場合、全エンドポイントが 404 を返す。
+`remoteApiEnabled = false`（デフォルト）の場合、全エンドポイントが 403 を返す。
+
+> **設計判断:** Remote LR 機能は将来的に LR プラグイン標準機能となる想定のため、
+> エンドポイントの存在を秘匿する必要はない。
+> 無効状態であることを明示する 403 Forbidden を採用する。
 
 ---
 
@@ -281,7 +285,7 @@ flowchart TD
 
 | 設定 | デフォルト | 説明 |
 |---|---|---|
-| `remoteApiEnabled` | `false` | マスタースイッチ。`false` の間は全エンドポイントが 404 を返す |
+| `remoteApiEnabled` | `false` | マスタースイッチ。`false` の間は全エンドポイントが 403 を返す |
 | `exposeLabel` | 未設定 | このラベルを持つリソースのみ公開。**未設定時は何も公開しない**（opt-in） |
 
 ### クライアント側（リモートロックを起動する Jenkins）

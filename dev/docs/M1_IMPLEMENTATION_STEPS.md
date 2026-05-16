@@ -24,8 +24,11 @@
 
 記録:
 - 日付: 2026-05-09
-- コミット: 739d6da
+- コミット: 739d6da（※ rebase 後は e4f70c3 が基点。M1 完了後に最終確認し更新予定）
 - メモ: $HOME/.local/apache-maven-3.9.9/bin/mvn test を実行し BUILD SUCCESS（Tests run: 238, Failures: 0, Errors: 0, Skipped: 1, Total time: 13:42）を確認。
+  2026-05-14 時点で PR #1028 cherry-pick（NodesMirror パッケージ修正）を master に適用後、feature ブランチを rebase し cold build でも BUILD SUCCESS（Tests run: 238, Failures: 0, Errors: 0, Skipped: 1）を確認。
+  - PR #1028 は upstream 未マージのため、ローカル master に cherry-pick（コミット `e4f70c3`）して対処中。
+  - Skipped: 1 は `LockStepInversePrecedenceTest#lockInverseOrderWithLabel`。JENKINS-40787 / GitHub #861 の既存バグ（ラベルベースロックで inversePrecedence が適用されずハングする）により `@Disabled` でスキップ中。M1 実装とは無関係。
 
 ---
 
@@ -240,24 +243,30 @@
 - [x] 単体確認完了
 
 記録:
-- 日付: 2026-05-14
-- コミット: f358dd9
+- 日付: 2026-05-14（2026-05-16 コードレビュー修正を amend）
+- コミット: 8a8d816
 - 変更ファイル:
   - src/main/java/.../remote/RemoteLockState.java (新規)
   - src/main/java/.../remote/RemoteLockRecord.java (新規)
   - src/main/java/.../remote/RemoteLockManager.java (新規)
   - src/main/java/.../remote/RemoteClientDefaults.java (編集: DEFAULT_REQUEST_TIMEOUT_SECONDS 10→5)
-  - src/main/java/.../actions/RemoteApiV1Action.java (新規)
+  - src/main/java/.../actions/RemoteApiV1Action.java (新規 + レビュー修正 amend)
   - src/main/java/.../LockableResource.java (編集: remoteLockedBy フィールド追加、isLocked() 更新)
   - src/main/java/.../LockableResourcesManager.java (編集: remoteApiEnabled + exposeLabel 追加)
   - src/main/java/.../actions/LockableResourcesRootAction.java (編集: getDynamic routing 追加)
   - src/test/resources/.../casc_expected_output.yml (編集: remoteApiEnabled: false 追加)
-- 確認結果: `rm -rf target/classes && mvn test` で BUILD SUCCESS（Tests run: 261, Failures: 0, Errors: 0, Skipped: 1）。
+- 確認結果: `mvn test` で BUILD SUCCESS（Tests run: 261, Failures: 0, Errors: 0, Skipped: 1）。レビュー修正後も同結果を確認（2026-05-16）。
 - 補足:
   - Extension index (`META-INF/annotations/hudson.Extension.txt`) が生成されないと Jenkins 起動時に @Extension クラスが未発見になり全テスト失敗する。`target/classes` を削除して強制再コンパイルすることで解消。
   - `mvn compile && mvn test` はこの問題を引き起こすため NG。`mvn test` のみを使う。
   - Stale 自動解放なし（安全方向）。STALE_THRESHOLD_MS=60000ms、TERMINAL_TTL_MS=120000ms。
   - 永続化なし（Jenkins 再起動時は全レコードが消える）。
+  - 2026-05-16 コードレビュー指摘を amend で修正:
+    - `exposeLabel` 未設定時に全リソースを公開していたバグを修正（opt-in 設計に合わせ未設定=全拒否）
+    - `heartbeatIntervalSeconds` のサーバー側バリデーション追加（≤0 または非整数 → 400 INVALID_HEARTBEAT_INTERVAL）
+    - POST /acquire レスポンスを 200 → 202 Accepted に修正
+    - エラーコードを RESOURCE_NOT_FOUND → UNKNOWN_RESOURCE に統一（LRR-DESIGN 準拠）
+  - remoteApiEnabled=false 時のステータスは 403 を正とする（LRR-DESIGN-j.md も同日修正済み）
 
 ---
 
@@ -294,6 +303,12 @@
 - `serverId` ありの分岐
 - `serverId` なし既存挙動の維持
 - remote acquire 成功/失敗の代表ケース
+- `RemoteApiV1Action` HTTP レベルテスト（サーバー側エンドポイントの直接固定）:
+  - `remoteApiEnabled=false` のとき全エンドポイントが 403 を返すこと
+  - `exposeLabel` 未設定のとき POST /acquire が 404 UNKNOWN_RESOURCE を返すこと
+  - `exposeLabel` 設定済みで対象ラベルなしリソースへの acquire が 404 UNKNOWN_RESOURCE を返すこと
+  - `heartbeatIntervalSeconds` に不正値（0、負数、文字列）を送ると 400 INVALID_HEARTBEAT_INTERVAL を返すこと
+  - 正常な acquire リクエストが 202 と lockId を返すこと
 
 完了条件:
 - 追加テストが安定して通る
@@ -334,6 +349,13 @@
 ## 現在ステータス
 
 - 開始日: 2026-05-09
-- 現在ステップ: 5（Step1〜4 完了、Step5 設計確定・実装開始前）
-- 次アクション: Step5 の実装順序1（`RemoteLockRecord` クラス新規作成）から着手
+- 現在ステップ: Step6（Step1〜5 完了）
+- 次アクション: Step6（最小 UI/可視化）から着手
 - ブロッカー: なし
+
+### ブランチ整理メモ
+
+- 現 master に PR #1028（NodesMirror パッケージ修正）を cherry-pick 済み（コミット `e4f70c3`）
+- feature ブランチは この cherry-pick 済み master で rebase 済み（2026-05-16）
+- 本家 master に #1028 が取り込まれ次第、cherry-pick コミットを drop して rebase し直す
+- **Step7 完了後の最終テスト実施時に下記 hash を実際のコミット hash へ更新すること**
