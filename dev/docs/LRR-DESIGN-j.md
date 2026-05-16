@@ -161,7 +161,7 @@ sequenceDiagram
 }
 ```
 
-> `clientId` は任意フィールド。省略時はサーバー側で `(Undefined)` として扱う。
+> `clientId` は任意フィールド。省略時はサーバー側で `(unknown)` として表示する。
 > Phase 1 ではクライアント側設定の `clientId`（未設定時は `Jenkins.getRootUrl()`）を自動送信する。
 
 **レスポンス:**
@@ -296,13 +296,30 @@ flowchart TD
 
 | 設定 | 説明 |
 |---|---|
-| `clientId` | リモートサーバーに送る自己識別子。空白時は `Jenkins.getRootUrl()` を使用。サーバー側 LR ページで "Locked by remote: `clientId`" として表示される |
+| `clientId` | リモートサーバーに送る自己識別子。空白時は `Jenkins.getRootUrl()` を使用。サーバー側 LR ページで `Remote: <clientId>` として表示される（未受信時は `Remote: (unknown)`） |
 | `remotes[]` | サーバー接続のマップ（キー = `serverId`） |
 | `remotes[].url` | リモート Jenkins のベース URL |
 | `remotes[].credentialsId` | Jenkins Credentials ID（username/password 型。username = サービスアカウント、password = API トークン） |
 | `forcedServerId` | 設定時は Delegated mode。`remotes` のキーと一致する必要がある |
 
 > `serverId` はクライアント側が付けたエイリアスであり、リモート Jenkins は認識しない。
+
+### B-side LR ページ表示
+
+サーバー側 LR 一覧の "Locked by" 列に remote lock 保有者を表示する。
+
+| 状況 | 表示文字列 |
+|---|---|
+| remote lock あり、clientId あり | `Remote: jenkins-a` |
+| remote lock あり、clientId なし | `Remote: (unknown)` |
+| remote lock なし | 通常の表示（変更なし） |
+
+**データアクセスパターン（Phase 1）:**
+- `LockableResource` に `getRemoteLockClientId()` メソッドを追加。
+- 内部で `RemoteLockManager.get().getRecord(remoteLockedBy)` を呼び、`clientId` を取得。
+- `LockableResource` の表示 jelly でこのメソッドを呼び出して `Remote: <clientId>` を描画。
+
+> `remoteLockedBy` が null（remote lock なし）の場合は通常表示パスに fallback する。
 
 ### バリデーション
 

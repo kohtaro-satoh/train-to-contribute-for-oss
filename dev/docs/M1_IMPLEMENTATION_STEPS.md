@@ -274,7 +274,7 @@
 
 スコープ確定（2026-05-16）:
 - **6a**: `clientId` を `POST /acquire` に追加（クライアント送信 + サーバー受信・保存 + 設定 UI）
-- **6b**: B-side LR ページ表示（サーバー側 LR 一覧に `clientId`・`lockId` を表示）
+- **6b**: B-side LR ページ表示（サーバー側 LR 一覧に `clientId` を表示）
 
 ---
 
@@ -326,25 +326,39 @@
 #### Step 6b: B-side LR ページ表示
 
 目的:
-- サーバー側 LR 一覧画面（Lockable Resources UI）に、remote lock 保有者の `clientId` と `lockId` を表示する。
+- サーバー側 LR 一覧画面（Lockable Resources UI）に、remote lock 保有者の `clientId` を表示する。
 - どの remote Jenkins がどのリソースをロックしているかを管理者が一目で把握できるようにする。
 
-実装候補:
-- `LockableResource` の表示 jelly に `remoteLockedBy` / `clientId` を追加
-- `RemoteLockRecord` に表示用 getter があれば利用
+設計方針（確定）:
+- 表示文字列: `Remote: <clientId>`（clientId が null の場合は `Remote: (unknown)`）
+- データ取得: `LockableResource` に `getRemoteLockClientId()` メソッドを追加し、内部で `RemoteLockManager.get().getRecord(remoteLockedBy)` を呼ぶ
+- `remoteLockedBy` が null（remote lock なし）のときは通常の "Locked by" 表示に fallback
+
+実装内容:
+- `LockableResource`: `getRemoteLockClientId()` メソッド追加
+- `LockableResource` の表示 jelly（`index.jelly` または `index.groovy`）: `remoteLockedBy != null` の場合に `Remote: clientId` を表示
+- `LRR-DESIGN-j.md`: Step 6a でセクション 6 に B-side 表示設計を追記済み
 
 完了条件:
-- LR 一覧で remote lock 保有者が確認できる
+- LR 一覧で remote lock 保有者が "Remote: clientId" として確認できる
+- `clientId` が null の場合に "Remote: (unknown)" が表示される
 
-- [ ] 実装完了
-- [ ] 動作確認完了
+- [x] 実装完了
+- [x] `mvn test` 確認完了
+- [x] コミット済み
 
 記録:
-- 日付:
-- コミット:
+- 日付: 2026-05-17
+- コミット: c2e9112
 - 変更ファイル:
-- 確認結果:
+  - src/main/java/.../LockableResource.java (編集: getRemoteLockClientId() 追加)
+  - src/main/resources/.../LockableResourcesRootAction/tableResources/table.jelly (編集: remote lock ケース追加)
+  - src/main/resources/.../LockableResourcesRootAction/tableResources/table.properties (編集: resource.status.remoteLockedBy キー追加)
+- 確認結果: `mvn test` で BUILD SUCCESS（Tests run: 261, Failures: 0, Errors: 0, Skipped: 1, Total time: 12:52）。2026-05-17
 - 補足:
+  - `getRemoteLockClientId()`: `remoteLockedBy == null` なら null 即返し、そうでなければ `RemoteLockManager.get().find(remoteLockedBy)` でレコードを検索して `clientId` を返す。レコードなし（再起動後等）は null。
+  - `table.jelly`: status コンテンツの `j:choose` で remote lock ケースを job-locked ケースより前に配置。`resource.remoteLockedBy != null` で分岐し、`remoteLockClientId` が null の場合は `(unknown)` にフォールバック。
+  - CSS クラス選択の `j:choose` は変更なし（`resource.locked == true` が既に `warning` に当たる）。
 
 ---
 
@@ -403,8 +417,8 @@
 ## 現在ステータス
 
 - 開始日: 2026-05-09
-- 現在ステップ: Step 6b 着手待ち（Step 6a コミット済み `f89330a`）
-- 次アクション: Step 6b（B-side LR ページ表示）
+- 現在ステップ: Step 6b 完了済み（コミット `c2e9112`）
+- 次アクション: Step 7（テスト）
 - ブロッカー: なし
 
 ### ブランチ整理メモ
