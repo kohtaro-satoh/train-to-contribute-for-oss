@@ -362,7 +362,12 @@
 
 ---
 
-### 7. テスト（M1 の成立確認）
+### 7. 正式テスト（plugin 側 / M1 の成立確認）
+
+方針:
+- plugin に入れるべきものだけをこのステップで扱う
+- 対象は `lockable-resources-plugin/src/test/...` と `src/test/resources/...` に置く回帰防止テスト
+- `mvn test` あるいは対象絞り込み付き `mvn test -Dtest=...` で再実行できる形を完了条件にする
 
 目的:
 - 回帰防止のため、M1 の核心を自動テストで固定する。
@@ -378,9 +383,18 @@
   - `heartbeatIntervalSeconds` に不正値（0、負数、文字列）を送ると 400 INVALID_HEARTBEAT_INTERVAL を返すこと
   - 正常な acquire リクエストが 202 と lockId を返すこと
 
+対象リポジトリ:
+- `lockable-resources-plugin`
+
+想定配置:
+- `src/test/java/.../RemoteApiV1ActionTest.java` または近接する HTTP レベルテスト
+- `src/test/java/.../LockStep...Test.java` 系への remote 分岐ケース追加
+- 必要に応じて `src/test/resources/...` の fixture 追加
+
 完了条件:
 - 追加テストが安定して通る
 - 主要ケースが再現可能
+- plugin 単体で CI に載せられる状態になっている
 
 - [ ] 実装完了
 - [ ] CI 相当のローカル実行で確認完了
@@ -394,18 +408,89 @@
 
 ---
 
-## E2E 確認チェック（3 controller）
+### 8. 自動 E2E（3 controller / 個人環境）
 
+方針:
+- 3 controller の検証は M1 の成立確認として必要だが、環境依存が強いため plugin 本体には入れない
+- `lrr-notes` 側に、起動済み 8081/8082/8083 環境で再実行できる自動E2E資産を置く
+- 実装方式は A 案に合わせて Java / shell / curl / Jenkins CLI など既存環境で回せるものを優先し、Playwright は使わない
+
+目的:
+- peer mode の最小成立を 3 controller 構成で自動再現できるようにする
+- 実装後に同じ手順をコマンド一発で再実行できるようにする
+
+対象リポジトリ:
+- `lrr-notes`
+
+実装候補:
+- `dev/integtest/` 配下に実行スクリプトと README を追加
+- 各 controller へのジョブ投入、待機、結果確認、後片付けを自動化
+- 必要なら `curl` ベースで remote API の生呼び出し確認も補助的に追加
+
+完了条件:
+- 3 controller E2E を一連で自動実行できる
+- 成功時/失敗時の判定基準がスクリプト化されている
+- ローカル環境依存の前提条件が `lrr-notes` 側に明記されている
+
+- [ ] 実装完了
+- [ ] ローカル自動実行で確認完了
+
+記録:
+- 日付:
+- コミット:
+- 変更ファイル:
+- 確認結果:
+- 補足:
+
+E2E 確認チェック（3 controller）:
 - [ ] 8081 -> 8082 の remote lock が取得できる
 - [ ] 8083 から同一 resource を叩くと待機/拒否の期待挙動になる
 - [ ] release 後に待機側が進む
 - [ ] 異常系（remote down, timeout, auth error）で fail-closed になる
 
+---
+
+### 9. テスト運用資産の整備（notes 側）
+
+方針:
+- plugin 側テストを補完する個人運用資産は `lrr-notes` に置く
+- M1 完了後も再利用できるよう、実行順序・コマンド・前提条件を文書化する
+
+目的:
+- Step7 と Step8 の実行方法を迷わない状態にする
+- 将来 M2 以降でも使い回せる最小運用資産を残す
+
+対象リポジトリ:
+- `lrr-notes`
+
+実装候補:
+- `dev/docs/` にテスト実行手順メモを追加
+- `dev/integtest/` の README または run スクリプトを整備
+- plugin 側の推奨実行コマンドを notes に集約
+
+完了条件:
+- Step7 / Step8 の実行入口が notes 側で整理されている
+- 新しい環境でも追従しやすいよう前提条件・既知制約が書かれている
+
+- [ ] 実装完了
+- [ ] 内容見直し完了
+
 記録:
 - 日付:
-- 実施者:
-- 結果:
-- 問題点:
+- コミット:
+- 変更ファイル:
+- 確認結果:
+- 補足:
+
+---
+
+## テスト実行の整理（M1時点の確定方針）
+
+1. Step7 は `lockable-resources-plugin` に入る正式テスト
+2. Step8 は `lrr-notes` に置く個人環境向け自動E2E
+3. Step9 は Step7/8 を回すための運用資産整備
+4. plugin 側に入れない理由が「環境依存」だけなら Step8/9 へ送る
+5. 将来 upstream に残したい検証はまず Step7 で検討する
 
 ## コミット運用ルール（この作業向け）
 
@@ -418,7 +503,7 @@
 
 - 開始日: 2026-05-09
 - 現在ステップ: Step 6b 完了済み（コミット `c2e9112`）
-- 次アクション: Step 7（テスト）
+- 次アクション: Step 7（plugin 側の正式テスト）
 - ブロッカー: なし
 
 ### ブランチ整理メモ
@@ -426,4 +511,4 @@
 - 現 master に PR #1028（NodesMirror パッケージ修正）を cherry-pick 済み（コミット `e4f70c3`）
 - feature ブランチは この cherry-pick 済み master で rebase 済み（2026-05-16）
 - 本家 master に #1028 が取り込まれ次第、cherry-pick コミットを drop して rebase し直す
-- **Step7 完了後の最終テスト実施時に下記 hash を実際のコミット hash へ更新すること**
+- **Step7-9 完了後の最終テスト実施時に下記 hash を実際のコミット hash へ更新すること**
