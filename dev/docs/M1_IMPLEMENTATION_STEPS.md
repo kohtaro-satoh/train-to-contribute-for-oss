@@ -400,11 +400,21 @@
 - [ ] CI 相当のローカル実行で確認完了
 
 記録:
-- 日付:
-- コミット:
+- 日付: 2026-05-17
+- コミット: 0ea83df
 - 変更ファイル:
+  - src/test/java/.../actions/RemoteApiV1ActionTest.java (新規)
+  - src/test/java/.../LockStepRemoteTest.java (新規)
 - 確認結果:
+  - `$HOME/.local/apache-maven-3.9.9/bin/mvn test -Dtest=RemoteApiV1ActionTest` を実行し成功（Tests run: 1, Failures: 0, Errors: 0, Skipped: 0）。
+  - `$HOME/.local/apache-maven-3.9.9/bin/mvn test -Dtest=LockStepRemoteTest` を実行し成功（Tests run: 6, Failures: 0, Errors: 0, Skipped: 0）。
 - 補足:
+  - Step7 は着手済み。まず `RemoteApiV1Action` の代表契約を固定する回帰テストを追加した。
+  - 現時点で固定した内容: `remoteApiEnabled=false` 時の 403、`exposeLabel` 制約による 404 `UNKNOWN_RESOURCE`、`heartbeatIntervalSeconds` 不正値による 400 `INVALID_HEARTBEAT_INTERVAL`、正常 acquire の 202 + `lockId`。
+  - `LockStepRemoteTest` で `serverId` 指定時に remote 分岐へ入ること、`serverId` なしでは remote 設定が存在しても既存 local lock フローを維持することを固定した。
+  - failure 系として、`serverId` に対応する remote 接続が未設定のケース、remote acquire status が `FAILED` を返すケース、`EXPIRED` を返すケース、`POST /acquire` の通信失敗ケースを追加し、body 未実行のまま build failure になることを固定した。
+  - 当初は JenkinsRule + HTTP 経由で組んだが、ローカル環境で Jetty の port bind が不安定だったため、action 直叩き + mocked Stapler に切り替えて安定化した。
+  - `serverId` 分岐、既存 local 挙動維持、代表的な failure 系の最小回帰テストは追加済み。Step7 全体としては、必要に応じて heartbeat 中断や status poll 中の通信失敗などの拡張ケース追加を残している。
 
 ---
 
@@ -502,8 +512,8 @@ E2E 確認チェック（3 controller）:
 ## 現在ステータス
 
 - 開始日: 2026-05-09
-- 現在ステップ: Step 6b 完了済み（コミット `c2e9112`）
-- 次アクション: Step 7（plugin 側の正式テスト）
+- 現在ステップ: Step 7 進行中（plugin 側テストコミット `0ea83df`）
+- 次アクション: Step 7 の全体テスト実行
 - ブロッカー: なし
 
 ### ブランチ整理メモ
